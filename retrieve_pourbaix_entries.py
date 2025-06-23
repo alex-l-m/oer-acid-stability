@@ -1,0 +1,188 @@
+'''Retrieve PourbaixEntry objects from the Materials Project, serialize as json, and save as gzipped files, for diagram construction later. Entries are saved to the directory "pourbaix_entries", with filename {formula}.json.gz, and can be loaded using pymatgen's MontyDecoder. In addition, a table of data about the downloads is saved, called "pourbaix_downloads.csv". Optionally, a job number and total number of jobs can be specified as arguments, to parallelize the download over multiple invocations of the script. In this case, each will save the json files to the same output folder, but the output table will be "pourbaix_downloads_{job_number}.csv".'''
+import sys
+import functools
+from hashlib import md5
+import gzip
+from os import mkdir
+import os.path
+import json
+from time import time
+from itertools import combinations
+from requests.exceptions import HTTPError
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import pandas as pd
+from mp_api.client import MPRester
+from pymatgen.core.periodic_table import Element
+from monty.json import MontyEncoder
+
+# Optional argument to split into jobs
+if len(sys.argv) == 1:
+    print('No job number provided, downloading all Pourbaix entries')
+    job_number = None
+    njobs = None
+if len(sys.argv) == 2:
+    raise ValueError('If you provide a job number, you must also provide the total number of jobs')
+if len(sys.argv) == 3:
+    print(f'Running job {sys.argv[1]} of {sys.argv[2]}')
+    job_number = int(sys.argv[1])
+    njobs = int(sys.argv[2])
+if len(sys.argv) > 3:
+    raise ValueError('Too many arguments provided; expected 0 or 2 arguments')
+
+# Directory for saving serialized Pourbaix entries
+outdir = 'pourbaix_entries'
+try:
+    mkdir(outdir)
+except FileExistsError:
+    pass
+
+# Check if there's already a saved output table from a previous run, and load
+# it if so
+if job_number is None:
+    outtbl_path = 'pourbaix_downloads.csv'
+else:
+    outtbl_path = f'pourbaix_downloads_{job_number}.csv'
+try:
+    prev_output = pd.read_csv(outtbl_path)
+    # Set of formulas previously downloaded
+    prev_symbols = set(prev_output['symbols'].tolist())
+except (FileNotFoundError, pd.errors.EmptyDataError):
+    prev_output = pd.DataFrame()
+    prev_symbols = set()
+
+def pourbaix2json(pourbaix_entries):
+    '''Convert a list of entry objects to text'''
+    # Use the Monty encoder to convert to a json string
+    text = json.dumps(pourbaix_entries, cls=MontyEncoder)
+    return text
+
+def string2job(instr, njobs):
+    '''Given a string, determine the job number of the job that will process
+    that string'''
+    hashed = md5(instr.encode('utf-8')).hexdigest()
+    return int(hashed, 16) % njobs
+
+# Download information rows
+download_tbl_rows = []
+
+# Pourbaix diagram construction information rows
+# I get ValueError on energy lookup for combinations involving H
+target_symbols = [element.symbol for element in Element \
+        # Redundant to include H and O, compounds with H and O will be
+        # considered during construction of the Pourbaix diagram
+        if not element.symbol == 'H' and not element.symbol == 'O']
+
+# All combinations of up to three elements
+singletons = [(symbol,) for symbol in target_symbols]
+pairs = list(combinations(target_symbols, 2))
+triplets = list(combinations(target_symbols, 3))
+symbol_combinations = singletons + pairs + triplets
+# For debugging
+# symbol_combinations = [
+#         ('Rb', 'Pb', 'F'),
+#         ('Rb', 'Pb', 'Cl'),
+#         ('Rb', 'Pb', 'Br'),
+#         ('Rb', 'Pb', 'I'),
+#         ('Cs', 'Sn', 'F'),
+#         ('Cs', 'Pb', 'F'),
+#         ('Cs', 'Pb', 'Cl'),
+#         ('Cs', 'Pb', 'Br'),
+#         ('Cs', 'Pb', 'I'),
+#         ('Cs', 'Sn', 'F'),
+#         ('Cs', 'Ge', 'F'),
+#         ('Cs', 'Ge', 'Cl'),
+#         ('Cs', 'Ge', 'Br'),
+#         ('Cs', 'Ge', 'I'),
+#         ('Cs', 'Sn', 'F'),
+#         ('Cs', 'Sn', 'Cl'),
+#         ('Cs', 'Sn', 'Br'),
+#         ('Cs', 'Sn', 'I'),
+#         ('Pb', 'Zr', 'Ti')
+#         ]
+# pourbaix diagram tutorial:
+# https://matgenb.materialsvirtuallab.org/2017/12/15/plotting-a-pourbaix-diagram.html
+try:
+    with MPRester() as mpr:
+        # My internet is unreliable, so setting up a session that can handle that
+        # Copy-pasting from here:
+        # https://stackoverflow.com/questions/23267409/how-to-implement-retry-mechanism-into-python-requests-library
+        retries = 10
+        retry = Retry(total=retries, read=retries, connect=retries,
+                      backoff_factor=1,
+                      status_forcelist=(429, 500, 502, 503, 504),
+                      allowed_methods=frozenset(['GET', 'POST']),
+                      raise_on_status=False)
+        adapter = HTTPAdapter(max_retries=retry)
+        mpr.session.mount('http://', adapter)
+        mpr.session.mount('https://', adapter)
+        # Also adding a timeout
+        # Importance of timeouts:
+        # https://findwork.dev/blog/advanced-usage-python-requests-timeouts-retries-hooks
+        # This method for setting them:
+        # https://stackoverflow.com/a/59317604
+        mpr.session.request = functools.partial(mpr.session.request, timeout=5)
+        for current_symbols in symbol_combinations:
+            print(f'Trying symbols: {current_symbols}')
+
+            this_download_tbl_row = dict()
+            formula = ''.join(current_symbols)
+            this_download_tbl_row['symbols'] = formula
+
+            # Skip if this one has been downloaded already
+            if formula in prev_symbols:
+                print(f'Skipping {formula} because it has been downloaded already')
+                continue
+
+            # Skip if this formula is a part of this job
+            if job_number is not None:
+                # Get the job number for this formula
+                formula_job_number = string2job(formula, njobs)
+                if formula_job_number != job_number:
+                    print(f'Skipping {formula} because it is not part of job {job_number}')
+                    continue
+
+            download_start = time()
+            # 1. download the entries (H and O are added automatically)
+            try:
+                pourbaix_entries = mpr.get_pourbaix_entries(current_symbols)
+            # ValueError on Yb
+            except ValueError as e:
+                print(f'Skipping {current_symbols} due to ValueError: {e}')
+                this_download_tbl_row['error'] = str(e)
+                download_tbl_rows.append(this_download_tbl_row)
+                continue
+            except HTTPError as err:
+                print(f'Skipping {current_symbols} due to HTTPError: {err}')
+                # Don't add to table so it tries again when rerun
+                continue
+            n_entries = len(pourbaix_entries)
+            this_download_tbl_row['n_entries'] = n_entries
+            if n_entries == 0:
+                print(f'Skipping {current_symbols} because no Pourbaix entries found')
+                download_tbl_rows.append(this_download_tbl_row)
+                continue
+            download_end = time()
+            download_time = download_end - download_start
+            this_download_tbl_row['download_time'] = download_time
+
+            print(f'Downloaded {n_entries} Pourbaix entries for {current_symbols} in {download_time:.2f} seconds')
+
+            # Serialize and save the entries
+            serialized_text = pourbaix2json(pourbaix_entries)
+            entries_outpath = os.path.join(outdir, f'{formula}.json.gz')
+            with gzip.open(entries_outpath, 'wt') as f:
+                f.write(serialized_text)
+                print(f'Saved {n_entries} Pourbaix entries for {current_symbols} to {entries_outpath}')
+            this_download_tbl_row['entries_outpath'] = entries_outpath
+
+            # Wrapping up
+            download_tbl_rows.append(this_download_tbl_row)
+finally:
+    # If there was a previous output table, concatenate the rows
+    # Actually, concatenate the rows in any case; if there was no previous table,
+    # it will be empty
+    new_output_tbl = pd.DataFrame(download_tbl_rows)
+    final_output_tbl = pd.concat([prev_output, new_output_tbl], ignore_index=True)
+    # Save the output table
+    final_output_tbl.to_csv(outtbl_path, index=False)
