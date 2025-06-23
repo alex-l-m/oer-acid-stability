@@ -110,7 +110,11 @@ try:
         retries = 10
         retry = Retry(total=retries, read=retries, connect=retries,
                       backoff_factor=1,
-                      status_forcelist=(429, 500, 502, 503, 504),
+                      # I've actually gotten 530
+                      # Seems like it's CloudFlare hitting a DNS issue, not
+                      # matproj
+                      # https://community.cloudflare.com/t/community-tip-fixing-error-530-error-1016-origin-dns-error/44264
+                      status_forcelist=(429, 500, 502, 503, 504, 530),
                       allowed_methods=frozenset(['GET', 'POST']),
                       raise_on_status=False)
         adapter = HTTPAdapter(max_retries=retry)
