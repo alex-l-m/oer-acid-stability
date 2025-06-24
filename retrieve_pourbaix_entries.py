@@ -8,7 +8,7 @@ import os.path
 import json
 from time import time
 from itertools import combinations
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, RetryError
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import pandas as pd
@@ -107,17 +107,26 @@ try:
         # My internet is unreliable, so setting up a session that can handle that
         # Copy-pasting from here:
         # https://stackoverflow.com/questions/23267409/how-to-implement-retry-mechanism-into-python-requests-library
-        retries = 10
+        # After running into an hours-long hang, reducing the number of retries
+        # and the backup factor
+        # However, that hang was right before an IP block due to exceeding the
+        # rate limit, so this may not have been necessary
+        retries = 5
         retry = Retry(total=retries, read=retries, connect=retries,
-                      backoff_factor=1,
+                      backoff_factor=0.5,
                       # I've actually gotten 530
                       # Seems like it's CloudFlare hitting a DNS issue, not
                       # matproj
                       # https://community.cloudflare.com/t/community-tip-fixing-error-530-error-1016-origin-dns-error/44264
-                      status_forcelist=(429, 500, 502, 503, 504, 530),
+                      # Not including 429, "Too Many Requests", because if I
+                      # quickly retry after that, I may just get my IP banned
+                      # again
+                      status_forcelist=(500, 502, 503, 504, 530),
                       allowed_methods=frozenset(['GET', 'POST']),
                       raise_on_status=False)
-        adapter = HTTPAdapter(max_retries=retry)
+        adapter = HTTPAdapter(max_retries=retry,
+                # Not sure if this helps
+                pool_maxsize = 100, pool_block = False)
         mpr.session.mount('http://', adapter)
         mpr.session.mount('https://', adapter)
         # Also adding a timeout
@@ -125,7 +134,11 @@ try:
         # https://findwork.dev/blog/advanced-usage-python-requests-timeouts-retries-hooks
         # This method for setting them:
         # https://stackoverflow.com/a/59317604
-        mpr.session.request = functools.partial(mpr.session.request, timeout=5)
+        # After still running into hours-long hangs, using a higher timeout.
+        # This is the timeout for an individual request, so I think the hang
+        # was in the Retry; trying to let it wait out problems rather than run
+        # into the exponentially long backups in Retry
+        mpr.session.request = functools.partial(mpr.session.request, timeout=60)
         for current_symbols in symbol_combinations:
             print(f'Trying symbols: {current_symbols}')
 
@@ -157,7 +170,16 @@ try:
                 download_tbl_rows.append(this_download_tbl_row)
                 continue
             except HTTPError as err:
-                print(f'Skipping {current_symbols} due to HTTPError: {err}')
+                if err.response.status_code == 429:
+                    print(f"Rate limited at symbols {current_symbols}: {err}")
+                    print("Pausing for 10 minutes to reset rate limit.")
+                    sleep(600)  # pause 10 min
+                else:
+                    print(f'Skipping {current_symbols} due to HTTPError: {err}')
+                # Don't add to table so it tries again when rerun
+                continue
+            except RetryError as err:
+                print(f'Skipping {current_symbols} due to RetryError: {err}')
                 # Don't add to table so it tries again when rerun
                 continue
             n_entries = len(pourbaix_entries)
