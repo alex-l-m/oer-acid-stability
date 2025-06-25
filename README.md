@@ -21,3 +21,11 @@ Saves a file 'precomputed\_properties.csv.gz' containing columns corresponding t
     python make_pourbaix_diagrams.py [JOBNUM] [NJOBS]
 
 This must be run after the downloader script, in the same directory.
+
+Assumes a file exists called 'pourbaix\_downloads.csv', so if the downloader script was parallelized, the results must have been concatenated into a single file with this name.
+
+# Filtering redundant or duplicate entries and annotating with precomputed properties
+
+    Rscript join.R
+
+Requires 'pourbaix\_data.csv' in working directory, so if decomposition energy calculations were parallelized, they must have been concatenated to a single file.
