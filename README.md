@@ -15,3 +15,9 @@ If a job number JOBNUM and total number of jobs NJOBS are provided, the script w
     retrieve_precomputed_properties.py
 
 Saves a file 'precomputed\_properties.csv.gz' containing columns corresponding to the Materials Project summary properties 'material\_id', 'band\_gap', 'energy\_above\_hull', 'deprecated', and 'theoretical'.
+
+# Compute decomposition energy from Pourbaix entries
+
+    python make_pourbaix_diagrams.py [JOBNUM] [NJOBS]
+
+This must be run after the downloader script, in the same directory.
