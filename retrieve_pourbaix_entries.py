@@ -1,4 +1,4 @@
-'''Retrieve PourbaixEntry objects from the Materials Project, serialize as json, and save as gzipped files, for diagram construction later. Entries are saved to the directory "pourbaix_entries", with filename {formula}.json.gz, and can be loaded using pymatgen's MontyDecoder. In addition, a table of data about the downloads is saved, called "pourbaix_downloads.csv.gz". Optionally, a job number and total number of jobs can be specified as arguments, to parallelize the download over multiple invocations of the script. In this case, each will save the json files to the same output folder, but the output table will be "pourbaix_downloads_{job_number}.csv".'''
+'''Retrieve PourbaixEntry objects from the Materials Project, serialize as json, and save as gzipped files, for diagram construction later. Entries are saved to the directory "pourbaix_entries", with filename {chemsys}.json.gz, and can be loaded using pymatgen's MontyDecoder. In addition, a table of data about the downloads is saved, called "pourbaix_downloads.csv.gz". Optionally, a job number and total number of jobs can be specified as arguments, to parallelize the download over multiple invocations of the script. In this case, each will save the json files to the same output folder, but the output table will be "pourbaix_downloads_{job_number}.csv".'''
 import sys
 import functools
 from time import sleep
@@ -44,7 +44,7 @@ else:
     outtbl_path = f'pourbaix_downloads_{job_number}.csv.gz'
 try:
     prev_output = pd.read_csv(outtbl_path)
-    # Set of formulas previously downloaded
+    # Set of chemsys's previously downloaded
     prev_symbols = set(prev_output['symbols'].tolist())
 except (FileNotFoundError, pd.errors.EmptyDataError):
     prev_output = pd.DataFrame()
@@ -122,20 +122,26 @@ try:
             print(f'Trying symbols: {current_symbols}')
 
             this_download_tbl_row = dict()
-            formula = ''.join(current_symbols)
-            this_download_tbl_row['symbols'] = formula
+            # Sort and join by dashes to create a "chemical system" string
+            # https://pymatgen.org/pymatgen.core.html?utm_source=chatgpt.com#pymatgen.core.composition.Composition.chemical_system
+            # > The chemical system of a Composition, for example “O-Si” for
+            # > SiO2. Chemical system is a string of a list of elements sorted
+            # > alphabetically and joined by dashes, by convention for use in
+            # > database keys.
+            chemsys = '-'.join(sorted(current_symbols))
+            this_download_tbl_row['symbols'] = chemsys
 
             # Skip if this one has been downloaded already
-            if formula in prev_symbols:
-                print(f'Skipping {formula} because it has been downloaded already')
+            if chemsys in prev_symbols:
+                print(f'Skipping {chemsys} because it has been downloaded already')
                 continue
 
-            # Skip if this formula is a part of this job
+            # Skip if this chemsys is a part of this job
             if job_number is not None:
-                # Get the job number for this formula
-                formula_job_number = string2job(formula, njobs)
-                if formula_job_number != job_number:
-                    print(f'Skipping {formula} because it is not part of job {job_number}')
+                # Get the job number for this chemsys
+                chemsys_job_number = string2job(chemsys, njobs)
+                if chemsys_job_number != job_number:
+                    print(f'Skipping {chemsys} because it is not part of job {job_number}')
                     continue
 
             download_start = time()
@@ -175,7 +181,7 @@ try:
 
             # Serialize and save the entries
             serialized_text = pourbaix2json(pourbaix_entries)
-            entries_outpath = os.path.join(outdir, f'{formula}.json.gz')
+            entries_outpath = os.path.join(outdir, f'{chemsys}.json.gz')
             with gzip.open(entries_outpath, 'wt') as f:
                 f.write(serialized_text)
                 print(f'Saved {n_entries} Pourbaix entries for {current_symbols} to {entries_outpath}')

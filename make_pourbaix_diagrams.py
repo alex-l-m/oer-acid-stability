@@ -1,5 +1,4 @@
 import sys
-import re
 import json
 import gzip
 from time import time
@@ -81,33 +80,28 @@ try:
     for row in intbl.itertuples():
         # The data from the table that I'm going to use
         inpath = row.entries_outpath
-        # Actually not a formula, just which elements are present, but
-        # concatenated like a formula
-        # I probably should have separated with dashes, so it doesn't look like
-        # a formula, and of course not used the "formula" variable name
-        formula = row.symbols
+        chemsys = row.symbols
 
         # Skip if this one has been downloaded already
-        if formula in prev_symbols:
-            print(f'Skipping {formula} because it has been downloaded already')
+        if chemsys in prev_symbols:
+            print(f'Skipping {chemsys} because it has been downloaded already')
             continue
 
-        # Separate the elements in the formula into a list
-        single_symbol_regex = re.compile('[A-Z][a-z]?')
-        current_symbols = single_symbol_regex.findall(formula)
+        # Separate the elements in the chemsys into a list
+        current_symbols = chemsys.split('-')
 
-        # The formulas that couldn't be downloaded because the data is
+        # The chemsyss that couldn't be downloaded because the data is
         # unavailable are still recorded in the table to avoid retrying the
         # download. These will be recognizable because the path to the entry
         # will be missing. If this is the case, skip this iteration of the loop
         if pd.isna(inpath):
             continue
 
-        # Skip if this formula is a part of this job
+        # Skip if this chemsys is a part of this job
         if job_number is not None:
-            # Get the job number for this formula
-            formula_job_number = string2job(formula, njobs)
-            if formula_job_number != job_number:
+            # Get the job number for this chemsys
+            chemsys_job_number = string2job(chemsys, njobs)
+            if chemsys_job_number != job_number:
                 continue
 
         # Create a list of PourbaixEntry objects from text saved during download
