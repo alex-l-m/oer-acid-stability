@@ -57,11 +57,11 @@ intbl = pd.read_csv(intbl_path)
 # Decide names of output files
 if job_number is not None:
     # Save the data for this job to a file
-    diagram_outpath = f'pourbaix_diagrams_{job_number}.csv'
-    data_outpath = f'pourbaix_data_{job_number}.csv'
+    diagram_outpath = f'pourbaix_diagrams_{job_number}.csv.gz'
+    data_outpath = f'pourbaix_data_{job_number}.csv.gz'
 else:
-    diagram_outpath = 'pourbaix_diagrams.csv'
-    data_outpath = 'pourbaix_data.csv'
+    diagram_outpath = 'pourbaix_diagrams.csv.gz'
+    data_outpath = 'pourbaix_data.csv.gz'
 
 # If the output files are already there, read them. Otherwise, create empty
 # tables
