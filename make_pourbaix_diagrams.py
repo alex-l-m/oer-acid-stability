@@ -50,7 +50,7 @@ data_tbl_rows = []
 # Pourbaix diagram construction information rows
 diagram_tbl_rows = []
 
-intbl_path = 'pourbaix_downloads.csv'
+intbl_path = 'pourbaix_downloads.csv.gz'
 # Header row:
 # symbols,n_entries,download_time,entries_outpath,error
 intbl = pd.read_csv(intbl_path)

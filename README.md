@@ -24,7 +24,7 @@ If a job number JOBNUM and total number of jobs NJOBS are provided, the script w
 
 This must be run after the downloader script, in the same directory.
 
-Assumes a file exists called 'pourbaix\_downloads.csv', so if the downloader script was parallelized, the results must have been concatenated into a single file with this name.
+Assumes a file exists called 'pourbaix\_downloads.csv.gz', so if the downloader script was parallelized, the results must have been concatenated into a single file with this name.
 
 # Filtering redundant or duplicate entries and annotating with precomputed properties
 

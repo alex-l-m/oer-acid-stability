@@ -1,4 +1,4 @@
-'''Retrieve PourbaixEntry objects from the Materials Project, serialize as json, and save as gzipped files, for diagram construction later. Entries are saved to the directory "pourbaix_entries", with filename {formula}.json.gz, and can be loaded using pymatgen's MontyDecoder. In addition, a table of data about the downloads is saved, called "pourbaix_downloads.csv". Optionally, a job number and total number of jobs can be specified as arguments, to parallelize the download over multiple invocations of the script. In this case, each will save the json files to the same output folder, but the output table will be "pourbaix_downloads_{job_number}.csv".'''
+'''Retrieve PourbaixEntry objects from the Materials Project, serialize as json, and save as gzipped files, for diagram construction later. Entries are saved to the directory "pourbaix_entries", with filename {formula}.json.gz, and can be loaded using pymatgen's MontyDecoder. In addition, a table of data about the downloads is saved, called "pourbaix_downloads.csv.gz". Optionally, a job number and total number of jobs can be specified as arguments, to parallelize the download over multiple invocations of the script. In this case, each will save the json files to the same output folder, but the output table will be "pourbaix_downloads_{job_number}.csv".'''
 import sys
 import functools
 from hashlib import md5
@@ -38,9 +38,9 @@ except FileExistsError:
 # Check if there's already a saved output table from a previous run, and load
 # it if so
 if job_number is None:
-    outtbl_path = 'pourbaix_downloads.csv'
+    outtbl_path = 'pourbaix_downloads.csv.gz'
 else:
-    outtbl_path = f'pourbaix_downloads_{job_number}.csv'
+    outtbl_path = f'pourbaix_downloads_{job_number}.csv.gz'
 try:
     prev_output = pd.read_csv(outtbl_path)
     # Set of formulas previously downloaded
