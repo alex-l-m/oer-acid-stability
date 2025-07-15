@@ -7,13 +7,11 @@ from os import mkdir
 import os.path
 import json
 from time import time
-from itertools import combinations
 from requests.exceptions import HTTPError, RetryError
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import pandas as pd
 from mp_api.client import MPRester
-from pymatgen.core.periodic_table import Element
 from monty.json import MontyEncoder
 
 # Optional argument to split into jobs
@@ -66,40 +64,20 @@ def string2job(instr, njobs):
 # Download information rows
 download_tbl_rows = []
 
-# Pourbaix diagram construction information rows
-# I get ValueError on energy lookup for combinations involving H
-target_symbols = [element.symbol for element in Element \
-        # Redundant to include H and O, compounds with H and O will be
-        # considered during construction of the Pourbaix diagram
-        if not element.symbol == 'H' and not element.symbol == 'O']
-
-# All combinations of up to three elements
-singletons = [(symbol,) for symbol in target_symbols]
-pairs = list(combinations(target_symbols, 2))
-triplets = list(combinations(target_symbols, 3))
-symbol_combinations = singletons + pairs + triplets
-# For debugging
-# symbol_combinations = [
-#         ('Rb', 'Pb', 'F'),
-#         ('Rb', 'Pb', 'Cl'),
-#         ('Rb', 'Pb', 'Br'),
-#         ('Rb', 'Pb', 'I'),
-#         ('Cs', 'Sn', 'F'),
-#         ('Cs', 'Pb', 'F'),
-#         ('Cs', 'Pb', 'Cl'),
-#         ('Cs', 'Pb', 'Br'),
-#         ('Cs', 'Pb', 'I'),
-#         ('Cs', 'Sn', 'F'),
-#         ('Cs', 'Ge', 'F'),
-#         ('Cs', 'Ge', 'Cl'),
-#         ('Cs', 'Ge', 'Br'),
-#         ('Cs', 'Ge', 'I'),
-#         ('Cs', 'Sn', 'F'),
-#         ('Cs', 'Sn', 'Cl'),
-#         ('Cs', 'Sn', 'Br'),
-#         ('Cs', 'Sn', 'I'),
-#         ('Pb', 'Zr', 'Ti')
-#         ]
+# Make a set of all symbol combinations present in a previously saved list of
+# compositions
+compositions = pd.read_csv('compositions.csv.gz')
+raw_symbol_combinations = set(
+        frozenset(tbl.element.tolist())
+        for material_id, tbl
+        in compositions.groupby('material_id'))
+# Redundant to include H and O, compounds with H and O will be
+# considered during construction of the Pourbaix diagram
+symbol_combinations = set(
+        frozenset(symbol
+                for symbol in combination
+                if symbol not in frozenset(['H', 'O']))
+        for combination in raw_symbol_combinations)
 # pourbaix diagram tutorial:
 # https://matgenb.materialsvirtuallab.org/2017/12/15/plotting-a-pourbaix-diagram.html
 try:
