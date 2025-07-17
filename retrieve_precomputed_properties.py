@@ -21,7 +21,15 @@ if args.ids:
 else:
     mp_ids = None
 
-with MPRester() as mpr:
+# When running without an input file, I get:
+# pydantic_core._pydantic_core.ValidationError
+# "Tips for Large Downloads" has example code without the document model
+# https://docs.materialsproject.org/downloading-data/using-the-api/tips-for-large-downloads
+# Jason Munro recommended this to someone as a workaround to issues on the
+# Materials Project's side:
+# https://matsci.org/t/validation-error-when-trying-to-query/51811
+# Therefire, adding arguments monty_decode and use_document_model
+with MPRester(monty_decode=False, use_document_model=False) as mpr:
     # Retrieve summaries with just the properties I'm interested in, band gap,
     # energy above hull, and synthesizability
     # num_chunks = None means return all possible values
@@ -56,25 +64,27 @@ composition_rows = []
 for entry in entries:
     # RETRIEVE PROPERTIES
     this_property_row = dict()
-    this_property_row['material_id'] = entry.material_id
-    this_property_row['band_gap'] = entry.band_gap
-    this_property_row['energy_above_hull'] = entry.energy_above_hull
-    this_property_row['deprecated'] = entry.deprecated
+    this_property_row['material_id'] = entry['material_id']
+    this_property_row['band_gap'] = entry['band_gap']
+    this_property_row['energy_above_hull'] = entry['energy_above_hull']
+    this_property_row['deprecated'] = entry['deprecated']
     # Theoretical is a boolean; it's the negation of the "Synthesizable"
     # property indicated with a star in the web interface:
     # https://matsci.org/t/obtain-star-materials/51386/2
     # It actually just means the material isn't present in ICSD:
     # https://matsci.org/t/how-is-the-theoretical-tag-determined/3527
-    this_property_row['theoretical'] = entry.theoretical
+    this_property_row['theoretical'] = entry['theoretical']
     property_rows.append(this_property_row)
 
     # RETRIEVE COMPOSITION
+    # Ideally I would use reduced composition, but without the document model I
+    # don't see how
     these_composition_rows = \
-            [{'material_id': entry.material_id,
+            [{'material_id': entry['material_id'],
                 'element': key,
                 'amount': value} \
              for key, value \
-             in entry.composition.reduced_composition.get_el_amt_dict().items()]
+             in entry['composition'].items()]
     composition_rows.extend(these_composition_rows)
 
 # Save a csv file with the table constructed from the property rows
