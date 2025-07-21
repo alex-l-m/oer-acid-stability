@@ -7,11 +7,15 @@ from os import mkdir
 import os.path
 import json
 from time import time, sleep
-from requests.exceptions import HTTPError, RetryError
+from http.client import IncompleteRead
+from requests.exceptions import (HTTPError, RetryError, ChunkedEncodingError,
+                                ConnectionError, Timeout)
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from urllib3.exceptions import ProtocolError
 import pandas as pd
 from mp_api.client import MPRester
+from mp_api.client.core.client import MPRestError
 from monty.json import MontyEncoder
 
 # Optional argument to split into jobs
@@ -89,8 +93,10 @@ try:
         # and the backup factor
         # However, that hang was right before an IP block due to exceeding the
         # rate limit, so this may not have been necessary
-        retries = 5
-        retry = Retry(total=retries, read=retries, connect=retries,
+        inner_retries = 5
+        retry = Retry(total=inner_retries,
+                      read=inner_retries,
+                      connect=inner_retries,
                       backoff_factor=0.5,
                       # I've actually gotten 530
                       # Seems like it's CloudFlare hitting a DNS issue, not
@@ -144,26 +150,41 @@ try:
                     continue
 
             download_start = time()
-            # 1. download the entries (H and O are added automatically)
-            try:
-                pourbaix_entries = mpr.get_pourbaix_entries(current_symbols)
-            # ValueError on Yb
-            except ValueError as e:
-                print(f'Skipping {current_symbols} due to ValueError: {e}')
-                this_download_tbl_row['error'] = str(e)
-                download_tbl_rows.append(this_download_tbl_row)
-                continue
-            except HTTPError as err:
-                if err.response.status_code == 429:
-                    print(f"Rate limited at symbols {current_symbols}: {err}")
-                    print("Pausing for 10 minutes to reset rate limit.")
-                    sleep(600)  # pause 10 min
-                else:
-                    print(f'Skipping {current_symbols} due to HTTPError: {err}')
-                # Don't add to table so it tries again when rerun
-                continue
-            except RetryError as err:
-                print(f'Skipping {current_symbols} due to RetryError: {err}')
+            outer_retries = 10
+            # Long outer delay; I think these are due to connection drops on my
+            # end, which can take a while to be restored
+            outer_delay = 30 # seconds
+            successful_download = False
+            # 1-indexing attempts for printing purposes
+            for attempt in range(1, outer_retries+1):
+                # 1. download the entries (H and O are added automatically)
+                try:
+                    pourbaix_entries = mpr.get_pourbaix_entries(current_symbols)
+                    successful_download = True
+                    break
+                except (ChunkedEncodingError, ConnectionError, ProtocolError,
+                        Timeout, IncompleteRead, MPRestError) as e:
+                    print(f'Download failed on attempt {attempt}/{outer_retries} to download {current_symbols}, likely due to an interrupted connection, with error {e}')
+                    sleep(outer_delay)
+                # ValueError on Yb
+                except ValueError as e:
+                    print(f'Skipping {current_symbols} due to ValueError: {e}')
+                    this_download_tbl_row['error'] = str(e)
+                    download_tbl_rows.append(this_download_tbl_row)
+                    break
+                except HTTPError as err:
+                    if err.response.status_code == 429:
+                        print(f"Rate limited at symbols {current_symbols}: {err}")
+                        print("Pausing for 10 minutes to reset rate limit.")
+                        sleep(600)  # pause 10 min
+                    else:
+                        print(f'Download failed on attempt {attempt}/{outer_retries} to download {current_symbols} due to HTTPError: {err}')
+                        sleep(outer_delay)
+                except RetryError as err:
+                    print(f'Download failed on attempt {attempt}/{outer_retries} to download {current_symbols} due to RetryError: {err}')
+                    sleep(outer_delay)
+            if not successful_download:
+                print(f'Skipping {current_symbols} after {attempt} attempts')
                 # Don't add to table so it tries again when rerun
                 continue
             n_entries = len(pourbaix_entries)
