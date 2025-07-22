@@ -1,5 +1,6 @@
 '''Retrieve PourbaixEntry objects from the Materials Project, serialize as json, and save as gzipped files, for diagram construction later. Entries are saved to the directory "pourbaix_entries", with filename {chemsys}.json.gz, and can be loaded using pymatgen's MontyDecoder. In addition, a table of data about the downloads is saved, called "pourbaix_downloads.csv.gz". Optionally, a job number and total number of jobs can be specified as arguments, to parallelize the download over multiple invocations of the script. In this case, each will save the json files to the same output folder, but the output table will be "pourbaix_downloads_{job_number}.csv".'''
 import sys
+from glob import glob
 import functools
 from hashlib import md5
 import gzip
@@ -39,19 +40,36 @@ try:
 except FileExistsError:
     pass
 
-# Check if there's already a saved output table from a previous run, and load
-# it if so
+# Set the path of the output table containing information about the downloads
 if job_number is None:
     outtbl_path = 'pourbaix_downloads.csv.gz'
 else:
     outtbl_path = f'pourbaix_downloads_{job_number}.csv.gz'
+
+# If it exists already, initialize output table with its data. Otherwise,
+# initialize an empty table
 try:
     prev_output = pd.read_csv(outtbl_path)
-    # Set of chemsys's previously downloaded
-    prev_symbols = set(prev_output['symbols'].tolist())
 except (FileNotFoundError, pd.errors.EmptyDataError):
-    prev_output = pd.DataFrame()
-    prev_symbols = set()
+    prev_output = pd.DataFrame(columns=['symbols', 'n_entries', 'download_time',
+                                        'entries_outpath', 'error'])
+
+# Check if there's already saved output tables from a previous run, and load
+# them if so. It's important to load all output files in case the number of
+# jobs was changed, in which case this job's task may already have been done in
+# a different job number's output file
+# Glob captures numbered output (where * is "_[number]") and un-numbered output
+# (where * is empty)
+prev_output_files = glob('pourbaix_downloads*.csv.gz')
+prev_symbols = set()
+for prev_output_file in prev_output_files:
+    try:
+        prev_output = pd.read_csv(prev_output_file)
+        # Set of chemsys's previously downloaded
+        this_prev_symbols = set(prev_output['symbols'].tolist())
+        prev_symbols.update(this_prev_symbols)
+    except pd.errors.EmptyDataError:
+        continue
 
 def pourbaix2json(pourbaix_entries):
     '''Convert a list of entry objects to text'''
