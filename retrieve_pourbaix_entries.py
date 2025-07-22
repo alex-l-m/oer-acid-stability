@@ -95,11 +95,17 @@ raw_symbol_combinations = set(
         in compositions.groupby('material_id'))
 # Redundant to include H and O, compounds with H and O will be
 # considered during construction of the Pourbaix diagram
-symbol_combinations = set(
+reduced_symbol_combinations = set(
         frozenset(symbol
                 for symbol in combination
                 if symbol not in frozenset(['H', 'O']))
         for combination in raw_symbol_combinations)
+# This creates another problem: if H and O are the only symbols present, we'll
+# get the empty set. So filter that out
+symbol_combinations = set(
+        combination
+        for combination in reduced_symbol_combinations
+        if len(combination) > 0)
 # pourbaix diagram tutorial:
 # https://matgenb.materialsvirtuallab.org/2017/12/15/plotting-a-pourbaix-diagram.html
 try:

@@ -161,6 +161,25 @@ try:
         inpath = row.entries_outpath
         chemsys = row.symbols
 
+        # The chemsys's that couldn't be downloaded because the data is
+        # unavailable are still recorded in the table to avoid retrying the
+        # download. These will be recognizable because the path to the entry
+        # will be missing. If this is the case, skip this iteration of the loop
+        if pd.isna(inpath):
+            continue
+        # Also check directly that the chemsys is nonempty. There should never
+        # be a circumstance where the input path is present but the chemsys is
+        # missing. However, in older versions of the code, systems with only H
+        # and O would still be considered, but with an empty chemsys. So just
+        # check that it isn't missing or the empty string. May as well leave
+        # the check in, because even though it isn't intended behavior, it's
+        # safer to handle invalid rows by skipping them, since they don't
+        # undermine the validity of the rest of the rows. But since it does
+        # mean the input is invalid, output a warning
+        if pd.isna(chemsys) or chemsys == '':
+            print(f'WARNING: file {inpath} has an empty chemsys. Skipping')
+            continue
+
         # Skip if this one has been downloaded already
         if chemsys in prev_symbols:
             print(f'Skipping {chemsys} because it has been downloaded already')
@@ -168,13 +187,6 @@ try:
 
         # Separate the elements in the chemsys into a list
         current_symbols = chemsys.split('-')
-
-        # The chemsyss that couldn't be downloaded because the data is
-        # unavailable are still recorded in the table to avoid retrying the
-        # download. These will be recognizable because the path to the entry
-        # will be missing. If this is the case, skip this iteration of the loop
-        if pd.isna(inpath):
-            continue
 
         # Skip if this chemsys is a part of this job
         if job_number is not None:
