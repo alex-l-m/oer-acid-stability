@@ -62,11 +62,11 @@ except (FileNotFoundError, pd.errors.EmptyDataError):
 # (where * is empty)
 prev_output_files = glob('pourbaix_downloads*.csv.gz')
 prev_symbols = set()
-for prev_output_file in prev_output_files:
+for this_prev_output_file in prev_output_files:
     try:
-        prev_output = pd.read_csv(prev_output_file)
+        this_prev_output = pd.read_csv(this_prev_output_file)
         # Set of chemsys's previously downloaded
-        this_prev_symbols = set(prev_output['symbols'].tolist())
+        this_prev_symbols = set(this_prev_output['symbols'].tolist())
         prev_symbols.update(this_prev_symbols)
     except pd.errors.EmptyDataError:
         continue
