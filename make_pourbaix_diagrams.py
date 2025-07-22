@@ -86,6 +86,17 @@ else:
 # Pourbaix diagram tutorial:
 # https://matgenb.materialsvirtuallab.org/2017/12/15/Plotting-a-Pourbaix-Diagram.html
 
+def finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
+           data_outpath, diagram_outpath):
+    new_data_tbl = pd.DataFrame(data_tbl_rows)
+    combined_data_tbl = pd.concat([old_data_tbl, new_data_tbl],
+                                  ignore_index=True)
+    combined_data_tbl.to_csv(data_outpath, index=False)
+    new_diagram_tbl = pd.DataFrame(diagram_tbl_rows)
+    combined_diagram_tbl = pd.concat([old_diagram_tbl, new_diagram_tbl],
+                                      ignore_index=True)
+    combined_diagram_tbl.to_csv(diagram_outpath, index=False)
+
 def safeint(r):
     '''Safe conversion to an integer'''
     n = int(r)
@@ -114,7 +125,13 @@ diagram_tbl_rows = []
 intbl_path = 'pourbaix_downloads.csv.gz'
 # Header row:
 # symbols,n_entries,download_time,entries_outpath,error
-intbl = pd.read_csv(intbl_path)
+intbl = pd.read_csv(intbl_path, dtype={
+        'symbols': str,
+        'n_entries': 'Int64',          # nullable integer
+        'download_time': float,        # always float
+        'entries_outpath': str,
+        'error': str
+    })
 
 # Decide names of output files
 if job_number is not None:
@@ -139,7 +156,7 @@ except (FileNotFoundError, pd.errors.EmptyDataError):
     old_data_tbl = pd.DataFrame()
 
 try:
-    for row in intbl.itertuples():
+    for i, row in enumerate(intbl.itertuples()):
         # The data from the table that I'm going to use
         inpath = row.entries_outpath
         chemsys = row.symbols
@@ -260,13 +277,12 @@ try:
                 this_data_row['decomposition_energy_lookup_time'] = lookup_time
 
                 data_tbl_rows.append(this_data_row)
-
+        # Every iteration write the output file to disk
+        if i % 1 == 0:
+            print(f'Processed {i} entries, writing to disk')
+            finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
+                   data_outpath, diagram_outpath)
 finally:
-    new_data_tbl = pd.DataFrame(data_tbl_rows)
-    combined_data_tbl = pd.concat([old_data_tbl, new_data_tbl],
-                                  ignore_index=True)
-    combined_data_tbl.to_csv(data_outpath, index=False)
-    new_diagram_tbl = pd.DataFrame(diagram_tbl_rows)
-    combined_diagram_tbl = pd.concat([old_diagram_tbl, new_diagram_tbl],
-                                      ignore_index=True)
-    combined_diagram_tbl.to_csv(diagram_outpath, index=False)
+    print(f'Finished after {i} entries, writing to disk')
+    finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
+           data_outpath, diagram_outpath)
