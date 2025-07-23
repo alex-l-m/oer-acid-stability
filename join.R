@@ -11,9 +11,10 @@ pourbaix_tbl <- read_csv('pourbaix_data.csv.gz', col_types = cols(
     symbols = col_character(),
     name = col_character(),
     entry_id = col_character(),
+    ph = col_double(),
+    voltage = col_double(),
     decomposition_energy = col_double(),
     decomposition_energy_lookup_time = col_double(),
-    decomposition_energy_v0 = col_double()
 )) |>
     # Get rid of the entries where a one of the elements wasn't included by
     # verifying that every one of the symbols is a substring of the name
