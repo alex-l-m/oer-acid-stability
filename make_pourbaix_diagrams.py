@@ -143,6 +143,9 @@ intypes = {
     }
 intbl = pd.read_csv(intbl_path, dtype=intypes)
 
+# Sort the table so that the faster diagrams will run first
+intbl = intbl.sort_values(by='n_entries')
+
 # Decide names of output files
 if job_number is not None:
     # Save the data for this job to a file
