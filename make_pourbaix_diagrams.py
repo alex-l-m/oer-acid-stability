@@ -3,6 +3,7 @@ import json
 import gzip
 import shutil
 from time import time
+from gzip import BadGzipFile
 from hashlib import md5
 import itertools
 import argparse
@@ -93,14 +94,16 @@ def finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
     combined_data_tbl = pd.concat([old_data_tbl, new_data_tbl],
                                   ignore_index=True)
     tmp_data_outpath = data_outpath + '.tmp'
-    combined_data_tbl.to_csv(tmp_data_outpath, index=False)
+    combined_data_tbl.to_csv(tmp_data_outpath,
+                             index=False, compression = 'gzip')
     shutil.move(tmp_data_outpath, data_outpath)
 
     new_diagram_tbl = pd.DataFrame(diagram_tbl_rows)
     combined_diagram_tbl = pd.concat([old_diagram_tbl, new_diagram_tbl],
                                       ignore_index=True)
     tmp_diagram_outpath = diagram_outpath + '.tmp'
-    combined_diagram_tbl.to_csv(tmp_diagram_outpath, index=False)
+    combined_diagram_tbl.to_csv(tmp_diagram_outpath,
+                                index=False, compression = 'gzip')
     shutil.move(tmp_diagram_outpath, diagram_outpath)
 
 def safeint(r):
@@ -131,13 +134,14 @@ diagram_tbl_rows = []
 intbl_path = 'pourbaix_downloads.csv.gz'
 # Header row:
 # symbols,n_entries,download_time,entries_outpath,error
-intbl = pd.read_csv(intbl_path, dtype={
+intypes = {
         'symbols': str,
         'n_entries': 'Int64',          # nullable integer
         'download_time': float,        # always float
         'entries_outpath': str,
         'error': str
-    })
+    }
+intbl = pd.read_csv(intbl_path, dtype=intypes)
 
 # Decide names of output files
 if job_number is not None:
@@ -151,13 +155,23 @@ else:
 # If the output files are already there, read them. Otherwise, create empty
 # tables
 try:
-    old_diagram_tbl = pd.read_csv(diagram_outpath)
+    # I messed up a run and didn't save as gzip, but did save with a .gz
+    # extension. But I still want to be able to read those files
+    try:
+        old_diagram_tbl = pd.read_csv(diagram_outpath)
+    except BadGzipFile:
+        print(f'WARNING: Input table {diagram_outpath} wasn\'t actually gzipped')
+        old_diagram_tbl = pd.read_csv(diagram_outpath, compression = None)
     prev_symbols = set(old_diagram_tbl['symbols'].tolist())
 except (FileNotFoundError, pd.errors.EmptyDataError):
     old_diagram_tbl = pd.DataFrame()
     prev_symbols = set()
 try:
-    old_data_tbl = pd.read_csv(data_outpath)
+    try:
+        old_data_tbl = pd.read_csv(data_outpath)
+    except BadGzipFile:
+        print(f'WARNING: Input table {data_outpath} wasn\'t actually gzipped')
+        old_data_tbl = pd.read_csv(data_outpath, compression = None)
 except (FileNotFoundError, pd.errors.EmptyDataError):
     old_data_tbl = pd.DataFrame()
 
