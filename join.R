@@ -7,7 +7,7 @@ elem_regex <- '[A-Z][a-z]?'
 # from PourbaixEntry objects. It's in the FAQ
 # https://docs.materialsproject.org/frequently-asked-questions
 core_regex = '^(mp|mvc)-\\d+'
-pourbaix_tbl <- read_csv('pourbaix_data.csv', col_types = cols(
+pourbaix_tbl <- read_csv('pourbaix_data.csv.gz', col_types = cols(
     symbols = col_character(),
     name = col_character(),
     entry_id = col_character(),
@@ -41,4 +41,4 @@ combined_tbl <- pourbaix_tbl |>
     left_join(annotation_tbl, by = 'material_id', relationship = 'one-to-one') |>
     filter(!deprecated)
 
-write_csv(combined_tbl, 'pourbaix_annotated.csv')
+write_csv(combined_tbl, 'pourbaix_annotated.csv.gz')
