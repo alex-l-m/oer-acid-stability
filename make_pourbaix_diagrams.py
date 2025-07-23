@@ -1,6 +1,7 @@
 import re
 import json
 import gzip
+import shutil
 from time import time
 from hashlib import md5
 import itertools
@@ -91,11 +92,16 @@ def finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
     new_data_tbl = pd.DataFrame(data_tbl_rows)
     combined_data_tbl = pd.concat([old_data_tbl, new_data_tbl],
                                   ignore_index=True)
-    combined_data_tbl.to_csv(data_outpath, index=False)
+    tmp_data_outpath = data_outpath + '.tmp'
+    combined_data_tbl.to_csv(tmp_data_outpath, index=False)
+    shutil.move(tmp_data_outpath, data_outpath)
+
     new_diagram_tbl = pd.DataFrame(diagram_tbl_rows)
     combined_diagram_tbl = pd.concat([old_diagram_tbl, new_diagram_tbl],
                                       ignore_index=True)
-    combined_diagram_tbl.to_csv(diagram_outpath, index=False)
+    tmp_diagram_outpath = diagram_outpath + '.tmp'
+    combined_diagram_tbl.to_csv(tmp_diagram_outpath, index=False)
+    shutil.move(tmp_diagram_outpath, diagram_outpath)
 
 def safeint(r):
     '''Safe conversion to an integer'''
