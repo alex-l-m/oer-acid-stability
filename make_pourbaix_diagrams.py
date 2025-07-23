@@ -291,15 +291,16 @@ try:
                 this_data_row['decomposition_energy_lookup_time'] = lookup_time
 
                 data_tbl_rows.append(this_data_row)
-        # Every iteration write the output file to disk
-        if i % 1 == 0:
+        # Write the output file to disk
+        buffer_size = 1
+        if i % buffer_size == 0:
             write_end_time = time()
             time_since_last_write = write_end_time - write_start_time # seconds
             minutes_since_last_write = time_since_last_write / 60
-            print(f'Processed {i} entries in {minutes_since_last_write:.2f} minutes, writing to disk')
+            print(f'Processed {buffer_size} element combinations in {minutes_since_last_write:.2f} minutes, writing to disk')
             finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
                    data_outpath, diagram_outpath)
 finally:
-    print(f'Finished after {i} entries, writing to disk')
+    print(f'Finished, writing to disk')
     finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
            data_outpath, diagram_outpath)
