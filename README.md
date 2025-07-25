@@ -4,11 +4,13 @@ Just uses the Pourbaix diagram functionality from pymatgen. However, takes care 
 
 ## Precomputed properties downloader script
 
-    retrieve_precomputed_properties.py [-i IDS]
+    python retrieve_precomputed_properties.py [-i IDS]
 
 Saves a file 'precomputed\_properties.csv.gz' containing columns corresponding to the Materials Project summary properties 'material\_id', 'band\_gap', 'energy\_above\_hull', 'deprecated', and 'theoretical'.
 
 Also saves a file "compositions.csv.gz" which will be used by the Pourbaix entry downloader script to decide which element combinations to download.
+
+Optional input is a text file containing a Materials Project id on each line, to download for selected entries. Without that, it will download for all entries.
 
 ## Pourbaix entry downloader script
 
