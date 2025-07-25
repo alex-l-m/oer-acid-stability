@@ -23,11 +23,7 @@ pourbaix_tbl <- read_csv('pourbaix_data.csv.gz', col_types = cols(
     # five thousand
     filter(mapply(function(x, y) all(x %in% y),
                   str_extract_all(symbols, elem_regex),
-                  str_extract_all(name, elem_regex))) |>
-    # Removing duplicates
-    # I don't know why I have duplicates; I really shouldn't!
-    # This needs investigation
-    distinct(symbols, name, entry_id, .keep_all = TRUE)
+                  str_extract_all(name, elem_regex)))
 
 annotation_tbl <- read_csv('precomputed_properties.csv.gz', col_types = cols(
     material_id = col_character(),
@@ -39,7 +35,7 @@ annotation_tbl <- read_csv('precomputed_properties.csv.gz', col_types = cols(
 combined_tbl <- pourbaix_tbl |>
     # Extract the material id from the entry id
     mutate(material_id = str_extract(entry_id, core_regex)) |>
-    left_join(annotation_tbl, by = 'material_id', relationship = 'one-to-one') |>
+    left_join(annotation_tbl, by = 'material_id', relationship = 'many-to-one') |>
     filter(!deprecated)
 
 write_csv(combined_tbl, 'pourbaix_annotated.csv.gz')
