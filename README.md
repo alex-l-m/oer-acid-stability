@@ -14,7 +14,7 @@ Optional input is a text file containing a Materials Project id on each line, to
 
 ## Pourbaix entry downloader script
 
-    python retrieve_pourbaix.py [JOBNUM] [NJOBS]
+    python retrieve_pourbaix_entries.py [JOBNUM] [NJOBS]
 
 For every combination retrieved in the previous step, this script downloads and saves the Pourbaix entries required to construct the diagram.
 
