@@ -323,6 +323,7 @@ try:
             print(f'Processed {buffer_size} element combinations in {minutes_since_last_write:.2f} minutes, writing to disk')
             finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
                    data_outpath, diagram_outpath)
+            write_start_time = time()
 finally:
     print(f'Finished, writing to disk')
     finish(data_tbl_rows, diagram_tbl_rows, old_data_tbl, old_diagram_tbl,
